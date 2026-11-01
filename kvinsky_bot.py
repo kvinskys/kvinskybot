@@ -5,6 +5,7 @@
 # kvinsky_bot.py — Telegram-бот для приёма заказов на монтаж (v2)
 # Запуск локально: python kvinsky_bot.py
 # На Render: Start Command = python kvinsky_bot.py
+
 import logging
 import os
 import threading
@@ -31,10 +32,9 @@ COVER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kvinsky-c
 CATEGORIES = {
     "🎬 Рилсы": [
         ("Рилс до 60 сек", "800 ₽ · 1-2 дня"),
-        ("Рилс с анимацией", "1200 ₽ · 2 дня"),
         ("Пакет 3 рилса", "3000 ₽ · 3-4 дня"),
     ],
-    "🌀 Эдиты": [
+    "🔥 Эдиты": [
         ("Эдит", "600 ₽ · 1-2 дня"),
     ],
     "📦 Пакеты": [
@@ -83,7 +83,7 @@ def category_keyboard(cat):
         rows.append([InlineKeyboardButton(
             f"{service} — {price}", callback_data="svc:" + service
         )])
-    rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_menu")])
+    rows.append([InlineKeyboardButton("🏠 Главное меню", callback_data="back_menu")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -92,6 +92,8 @@ def service_text(cat, service, price):
         InlineKeyboardButton("🛒 Купить", url=buy_link(service, price))
     ], [
         InlineKeyboardButton("⬅️ Назад", callback_data="back_cat:" + cat)
+    ], [
+        InlineKeyboardButton("🏠 Главное меню", callback_data="back_menu")
     ]])
     msg = (
         f"🏷 *{service}*\n"
