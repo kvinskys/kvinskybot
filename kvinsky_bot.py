@@ -83,9 +83,6 @@ def category_keyboard(cat):
         rows.append([InlineKeyboardButton(
             f"{service} — {price}", callback_data="svc:" + service
         )])
-        rows.append([InlineKeyboardButton(
-            "🛒 Купить", url=buy_link(service, price)
-        )])
     rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_menu")])
     return InlineKeyboardMarkup(rows)
 
