@@ -7,6 +7,8 @@
 # На Render: Start Command = python kvinsky_bot.py
 
 import logging
+import os
+import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -19,6 +21,7 @@ BOT_TOKEN = "9159913958:AAEshD6brh51WXuvAcWAX4lfufeTlWh0njs"
 YOUR_TELEGRAM_ID = 8895149828
 
 PORTFOLIO_URL = "https://kvinskys.github.io/kvinsky/"
+MY_TG_USERNAME = "starygnom"  # замени на свой рабочий TG-юзернейм (без @)
 
 # Брендинг
 BRAND = "kvinsky"
@@ -32,30 +35,37 @@ SERVICES = {
         "Пакет 3 рилса": "3000 ₽ · срок 3-4 дня",
     },
     "🌀 Эдиты": {
+        "Эдит (базовый)": "500 ₽ · срок 1-2 дня",
         "Эдит под трек": "1500 ₽ · срок 2-3 дня",
-        "Эдит с граф. скоростей (Flow)": "2000 ₽ · срок 3 дня",
+        "Эдит с Flow-анимациями": "2000 ₽ · срок 3 дня",
         "Полный эдит под ключ": "3000 ₽ · срок 4-5 дней",
     },
     "📦 Пакеты и коллаб": {
-        "Пакет 5 рилсов": "6000 ₽ · срок 5-7 дней",
+        "Стартовый (5 рилсов)": "6000 ₽ · срок 5-7 дней",
+        "Карьерный (10 рилсов)": "10000 ₽ · 10-12 дней",
         "Месячный монтаж (8 рилсов)": "10000 ₽ · месяц",
-        "Работа со стримером": "по договорённости",
+        "Коллаб / работа со стримером": "по договорённости",
     },
     "🎥 Другое": {
         "Обложка для стрима": "1000 ₽ · 1 день",
         "Интро / заставка": "800 ₽ · 1-2 дня",
+        "Клип для TikTok из поста": "700 ₽ · 1-2 дня",
         "Другое (обсудим)": "по договорённости",
     },
 }
 
 WELCOME_TEXT = (
-    "*kvinsky — качественный монтаж*\n"
-    "Монтаж, эдиты и рилсы, которые выглядит дорого и бьют в топ.\n\n"
-    "Выбери категорию ниже, посмотри цены и оставь заявку — "
-    "отвечаю быстро и беру в работу."
+    "⚡️ *KVINSKY* ⚡️\n"
+    "Качественный монтаж, который выглядит дорого и бьёт в топ.\n\n"
+    "🎬 Рилсы и shorts\n"
+    "🌀 Эдиты под трек\n"
+    "📦 Пакеты и коллабы\n"
+    "🎥 Обложки, интро и другое\n\n"
+    "👇 Нажми на категорию — посмотри цены и оставь заявку. "
+    "Отвечаю быстро и беру в работу!"
 )
 
-CATEGORY_TEXT = "Выбери услугу. Жми на неё — и я приму заявку."
+CATEGORY_TEXT = "📋 Выбери услугу:\n\n_Жми на неё — и я приму заявку._"
 
 NOTICE_NEW_ORDER = "📥 НОВЫЙ ЗАКАЗ"
 NOTICE_NEW_TASK = "✍️ ТЗ ОТ КЛИЕНТА"
@@ -74,6 +84,7 @@ def brand_keyboard():
              InlineKeyboardButton("🌀 Эдиты", callback_data="cat:🌀 Эдиты")],
             [InlineKeyboardButton("📦 Пакеты", callback_data="cat:📦 Пакеты и коллаб"),
              InlineKeyboardButton("🎥 Другое", callback_data="cat:🎥 Другое")],
+            [InlineKeyboardButton("✉️ Связаться", url=f"https://t.me/{MY_TG_USERNAME}")],
         ]
     )
 
@@ -114,14 +125,20 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # === Выбрана услуга — спрашиваем ТЗ ===
     if data.startswith("serv:"):
-        _, cat, name = data.split("|", 2)
+        parts = data.split("|")
+        cat = parts[1]
+        name = parts[2]
         price = SERVICES.get(cat, {}).get(name, "")
         context.user_data["pending_order"] = {"cat": cat, "name": name, "price": price}
+        cancel_kb = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅️ Назад в меню", callback_data="back_menu")]]
+        )
         await query.edit_message_text(
-            f"✅ Ты выбрал: *{name}*\n_({price})_\n\n"
-            f"Напиши сюда краткое описание задачи — что нужно сделать, "
-            f"что за проект, есть ли референсы. Я всё прочитаю и вернусь.",
+            f"✅ Ты выбрал: *{name}*\n💰 {price}\n\n"
+            f"Теперь напиши сюда описание задачи — что нужно сделать, "
+            f"о проекте и референсы. Я прочитаю и вернусь!",
             parse_mode="Markdown",
+            reply_markup=cancel_kb,
         )
         return
 
@@ -155,14 +172,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.user_data.pop("pending_order", None)
         await update.message.reply_text(
-            "🎉 Готово, заявка у меня! Я уже увидел её и скоро свяжусь с тобой.\n\n"
-            f"{BRAND_LINE}"
+            "🎉 *Заявка у меня!*\n\n"
+            "Я уже вижу её и скоро свяжусь с тобой. "
+            "Обычно отвечаю в течение пары часов.\n\n"
+            f"{BRAND_LINE}",
+            parse_mode="Markdown",
+            reply_markup=brand_keyboard(),
         )
     else:
         # Просто сообщение без услуги
         await update.message.reply_text(
-            "Я принимаю заявки на монтаж!\n\n"
-            "Чтобы заказать: жми 'Меню' ниже и выбери услугу.\n\n"
+            "Я принимаю заявки на монтаж! 🎬\n\n"
+            "Чтобы заказать — жми кнопку ниже и выбери услугу.\n\n"
             f"{BRAND_LINE}",
             reply_markup=brand_keyboard(),
         )
@@ -203,8 +224,36 @@ def main():
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text)
     )
+
+    # Слушаем HTTP-порт, который задаёт Render (env PORT),
+    # чтобы бесплатный сервис не засыпал в спящий режим.
+    _start_web_server()
+
     print("Бот v2 запущен. Нажми Ctrl+C, чтобы остановить.")
     app.run_polling()
+
+
+def _start_web_server():
+    """Мини-HTTP-сервер, держит Render-сервис живым на порту PORT (default 10000)."""
+    try:
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        port = int(os.environ.get("PORT", "10000"))
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"kvinsky bot is running")
+
+            def log_message(self, *a):
+                pass
+
+        httpd = HTTPServer(("0.0.0.0", port), Handler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        print(f"HTTP keeper listening on port {port}")
+    except Exception as e:
+        logger.warning(f"Не удалось запустить HTTP keeper: {e}")
 
 
 if __name__ == "__main__":
