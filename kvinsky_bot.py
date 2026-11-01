@@ -153,4 +153,66 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if s == service:
                     msg, kb = service_text(cat, s, p)
                     await q.edit_message_text(
-                        msg, parse_mode="Markdown", re
+                        msg, parse_mode="Markdown", reply_markup=kb
+                    )
+                    return
+
+    elif data.startswith("back_cat:"):
+        cat = data[9:]
+        await q.edit_message_text(
+            f"*{cat}*\n\n{CATEGORY_HINT}",
+            parse_mode="Markdown",
+            reply_markup=category_keyboard(cat),
+        )
+
+    elif data == "back_menu":
+        await q.edit_message_text(
+            "Главное меню:", reply_markup=main_keyboard()
+        )
+
+
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        f"Я принимаю заказы на монтаж!\n\n"
+        f"Выбери раздел кнопкой ниже 👇\n\n{BRAND_LINE}",
+        reply_markup=main_keyboard(),
+    )
+
+
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CallbackQueryHandler(button))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, unknown)
+    )
+
+    _start_web_server()
+
+    print("Бот v4 запущен. Нажми Ctrl+C, чтобы остановить.")
+    app.run_polling()
+
+
+def _start_web_server():
+    try:
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        port = int(os.environ.get("PORT", "10000"))
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"kvinsky bot is running")
+            def log_message(self, *a):
+                pass
+
+        httpd = HTTPServer(("0.0.0.0", port), Handler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        print(f"HTTP keeper listening on port {port}")
+    except Exception as e:
+        logger.warning(f"HTTP keeper: {e}")
+
+
+if __name__ == "__main__":
+    main()
